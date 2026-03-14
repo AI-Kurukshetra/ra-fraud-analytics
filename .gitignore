@@ -25,3 +25,6 @@ env.local
 
 # typescript
 *.tsbuildinfo
+
+# generated model artifacts
+models/fraud-model-trained*.json

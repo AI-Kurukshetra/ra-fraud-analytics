@@ -1,0 +1,6 @@
+call_type,origin_country,destination_country,duration_seconds,charge_amount,billed_amount,source_system,label
+voice,IN,US,8200,120.00,1800.00,billing,pbx_hacking
+voice,IN,AE,4,0.03,0.00,network,sim_box
+data,IN,IN,120,0.00,249.99,mediation,subscription_fraud
+voice,IN,US,240,80.00,230.00,billing,roaming_fraud
+voice,IN,IN,360,150.00,80.00,mediation,interconnect_leakage

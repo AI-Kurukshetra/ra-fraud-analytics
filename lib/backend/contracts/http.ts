@@ -1,7 +1,12 @@
+export type ApiMeta = {
+  timestamp: string;
+  apiVersion: string;
+} & Record<string, unknown>;
+
 export type ApiSuccess<T> = {
   success: true;
   data: T;
-  meta?: Record<string, unknown>;
+  meta?: ApiMeta;
 };
 
 export type ApiError = {
@@ -15,7 +20,7 @@ export type ApiError = {
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 
-export function ok<T>(data: T, meta?: Record<string, unknown>): ApiSuccess<T> {
+export function ok<T>(data: T, meta?: ApiMeta): ApiSuccess<T> {
   return { success: true, data, meta };
 }
 

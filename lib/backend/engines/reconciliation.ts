@@ -10,18 +10,18 @@ export type ReconciliationResult = {
 
 export function reconcile(items: ReconciliationItem[]): ReconciliationResult[] {
   return items.map((item) => {
-    const expected = item.mediatedAmount;
-    const actual = item.billedAmount;
-    const collectedGap = Math.max(0, item.billedAmount - item.collectedAmount);
-    const mismatchAmount = Number(Math.abs(expected - actual).toFixed(2));
-    const leakageAmount = Number((mismatchAmount + collectedGap).toFixed(2));
+    const billedVsMediated = Math.abs(item.billedAmount - item.mediatedAmount);
+    const billedVsCollected = Math.max(0, item.billedAmount - item.collectedAmount);
+    const mediatedVsCollected = Math.max(0, item.mediatedAmount - item.collectedAmount);
+    const mismatchAmount = Number(billedVsMediated.toFixed(2));
+    const leakageAmount = Number((Math.max(billedVsCollected, mediatedVsCollected) + billedVsMediated).toFixed(2));
 
     let severity: Severity = "low";
-    if (leakageAmount > 1000) {
+    if (leakageAmount >= 1000) {
       severity = "critical";
-    } else if (leakageAmount > 500) {
+    } else if (leakageAmount >= 300) {
       severity = "high";
-    } else if (leakageAmount > 100) {
+    } else if (leakageAmount >= 50) {
       severity = "medium";
     }
 

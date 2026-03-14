@@ -2,41 +2,78 @@ import { withAuth } from "@/lib/backend/auth/handler";
 import { createAdminClient } from "@/lib/backend/db";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
-export async function GET() {
+export async function GET(request: Request) {
   return withAuth(async (auth) => {
+    const url = new URL(request.url);
+    const limitParam = Number(url.searchParams.get("limit") ?? "50");
+    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 500) : 50;
+    const since = url.searchParams.get("since");
+
     const admin = createAdminClient();
 
-    const [{ data: auditEvents, error: auditError }, { data: qualityEvents, error: qualityError }, { data: lineageEvents, error: lineageError }] =
+    let auditQuery = admin
+      .from("audit_logs")
+      .select("id, actor_user_id, action, resource_type, resource_id, created_at")
+      .eq("tenant_id", auth.tenantId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    let qualityQuery = admin
+      .from("data_quality_runs")
+      .select("id, quality_score, checked_count, failed_count, created_at")
+      .eq("tenant_id", auth.tenantId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    let lineageQuery = admin
+      .from("data_lineage_events")
+      .select("id, source_system, dataset, operation, record_count, processed_at")
+      .eq("tenant_id", auth.tenantId)
+      .order("processed_at", { ascending: false })
+      .limit(limit);
+
+    if (since) {
+      auditQuery = auditQuery.gte("created_at", since);
+      qualityQuery = qualityQuery.gte("created_at", since);
+      lineageQuery = lineageQuery.gte("processed_at", since);
+    }
+
+    const [{ data: auditEvents, error: auditError }, { data: qualityEvents, error: qualityError }, { data: lineageEvents, error: lineageError }, { data: reportEvents, error: reportError }] =
       await Promise.all([
+        auditQuery,
+        qualityQuery,
+        lineageQuery,
         admin
-          .from("audit_logs")
-          .select("id, actor_user_id, action, resource_type, resource_id, created_at")
+          .from("reports")
+          .select("id, report_type, status, generated_at")
           .eq("tenant_id", auth.tenantId)
-          .order("created_at", { ascending: false })
-          .limit(50),
-        admin
-          .from("data_quality_runs")
-          .select("id, quality_score, checked_count, failed_count, created_at")
-          .eq("tenant_id", auth.tenantId)
-          .order("created_at", { ascending: false })
-          .limit(50),
-        admin
-          .from("data_lineage_events")
-          .select("id, source_system, dataset, operation, record_count, processed_at")
-          .eq("tenant_id", auth.tenantId)
-          .order("processed_at", { ascending: false })
-          .limit(50),
+          .order("generated_at", { ascending: false })
+          .limit(limit),
       ]);
 
-    const error = auditError ?? qualityError ?? lineageError;
+    const error = auditError ?? qualityError ?? lineageError ?? reportError;
     if (error) {
       return jsonError("DB_ERROR", error.message, 500);
     }
+
+    const quality = qualityEvents ?? [];
+    const averageQualityScore =
+      quality.length === 0
+        ? null
+        : Number((quality.reduce((sum, item) => sum + Number(item.quality_score), 0) / quality.length).toFixed(2));
 
     return jsonOk({
       auditEvents: auditEvents ?? [],
       qualityEvents: qualityEvents ?? [],
       lineageEvents: lineageEvents ?? [],
+      reportEvents: reportEvents ?? [],
+      summary: {
+        auditCount: (auditEvents ?? []).length,
+        lineageCount: (lineageEvents ?? []).length,
+        qualityRunCount: quality.length,
+        averageQualityScore,
+        latestReportAt: reportEvents?.[0]?.generated_at ?? null,
+      },
     });
-  });
+  }, { allowedRoles: ["owner", "admin", "analyst", "viewer"] });
 }

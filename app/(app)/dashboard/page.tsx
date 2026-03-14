@@ -8,6 +8,8 @@ import type { AlertListItem, AnalyticsKpis, CaseListItem, DashboardCard } from "
 
 export default function DashboardPage() {
   const { tenantId } = useAuthContext();
+  const [mode, setMode] = useState<"operational" | "executive">("operational");
+  const [hoursBack, setHoursBack] = useState(24);
   const [kpis, setKpis] = useState<AnalyticsKpis | null>(null);
   const [cards, setCards] = useState<DashboardCard[]>([]);
   const [alerts, setAlerts] = useState<AlertListItem[]>([]);
@@ -52,20 +54,56 @@ export default function DashboardPage() {
       .filter((item) => item.status === "resolved" || item.status === "closed")
       .reduce((sum, item) => sum + item.revenue_impact, 0);
 
+    const recentAlerts = alerts.filter((item) => {
+      return Date.now() - new Date(item.created_at).getTime() <= hoursBack * 3600 * 1000;
+    });
+    const recentCases = cases.filter((item) => {
+      return Date.now() - new Date(item.updated_at).getTime() <= hoursBack * 3600 * 1000;
+    });
+
     return {
       totalAlerts: kpis?.alertCount ?? alerts.length,
-      criticalAlerts,
-      openCases,
+      criticalAlerts: mode === "executive" ? criticalAlerts : recentAlerts.filter((item) => item.severity === "critical").length,
+      openCases: mode === "executive" ? openCases : recentCases.filter((item) => item.status === "open" || item.status === "investigating").length,
       recovered,
       cdrCount: kpis?.cdrCount ?? 0,
     };
-  }, [alerts, cases, kpis]);
+  }, [alerts, cases, kpis, mode, hoursBack]);
 
   return (
     <div className="stack-lg">
       <div>
         <h2 className="page-title">Operational & Executive Dashboards</h2>
         <p className="muted">Real-time fraud, leakage, recovery impact, and investigation throughput.</p>
+      </div>
+
+      <div className="inline-form">
+        <label htmlFor="dash-mode" className="muted">
+          View
+        </label>
+        <select
+          id="dash-mode"
+          className="input"
+          value={mode}
+          onChange={(event) => setMode(event.target.value as "operational" | "executive")}
+        >
+          <option value="operational">Operational</option>
+          <option value="executive">Executive</option>
+        </select>
+        <label htmlFor="dash-window" className="muted">
+          Window
+        </label>
+        <select
+          id="dash-window"
+          className="input"
+          value={hoursBack}
+          onChange={(event) => setHoursBack(Number(event.target.value))}
+          disabled={mode === "executive"}
+        >
+          <option value={6}>Last 6h</option>
+          <option value={24}>Last 24h</option>
+          <option value={72}>Last 72h</option>
+        </select>
       </div>
 
       <DataState

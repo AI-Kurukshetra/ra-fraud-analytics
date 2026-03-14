@@ -1,20 +1,42 @@
 import { withAuth } from "@/lib/backend/auth/handler";
+import { writeAuditLog } from "@/lib/backend/audit";
 import { createAdminClient } from "@/lib/backend/db";
+import { parseListLimit } from "@/lib/backend/validation";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
-export async function GET() {
+export async function GET(request: Request) {
   return withAuth(async (auth) => {
+    const url = new URL(request.url);
+    const workflowType = url.searchParams.get("workflowType")?.trim();
+    const limit = parseListLimit(url.searchParams.get("limit"), { fallback: 150, min: 1, max: 500 });
+
     const admin = createAdminClient();
-    const { data, error } = await admin
+    let query = admin
       .from("workflows")
       .select("id, workflow_name, workflow_type, is_active, updated_at")
       .eq("tenant_id", auth.tenantId)
-      .order("updated_at", { ascending: false });
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (workflowType) {
+      query = query.eq("workflow_type", workflowType);
+    }
+    const { data, error } = await query;
 
     if (error) {
       return jsonError("DB_ERROR", error.message, 500);
     }
 
-    return jsonOk({ workflows: data ?? [] });
-  });
+    await writeAuditLog({
+      tenantId: auth.tenantId,
+      actorUserId: auth.user.id,
+      action: "workflows_list",
+      resourceType: "workflow",
+      payload: { workflowType: workflowType ?? "all", limit, count: data?.length ?? 0 },
+    });
+
+    return jsonOk({
+      workflows: data ?? [],
+      reportDistributionReady: (data ?? []).some((item) => item.workflow_type.includes("report")),
+    });
+  }, { allowedRoles: ["owner", "admin", "analyst", "viewer"] });
 }

@@ -4,21 +4,63 @@ import { createAdminClient } from "@/lib/backend/db";
 import { isCaseStatus } from "@/lib/backend/validation";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
-export async function GET() {
+const CASE_TRANSITIONS: Record<string, string[]> = {
+  open: ["investigating", "closed"],
+  investigating: ["resolved", "closed"],
+  resolved: ["closed"],
+  closed: [],
+};
+
+export async function GET(request: Request) {
   return withAuth(async (auth) => {
+    const url = new URL(request.url);
+    const status = url.searchParams.get("status");
+    const assigneeUserId = url.searchParams.get("assigneeUserId");
+    const alertId = url.searchParams.get("alertId");
+    const limitParam = Number(url.searchParams.get("limit") ?? "200");
+    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 500) : 200;
+
     const admin = createAdminClient();
-    const { data, error } = await admin
+    let query = admin
       .from("cases")
       .select("id, title, status, assignee_user_id, alert_id, revenue_impact, notes, created_at, updated_at")
       .eq("tenant_id", auth.tenantId)
       .order("updated_at", { ascending: false })
-      .limit(200);
+      .limit(limit);
+
+    if (status && isCaseStatus(status)) {
+      query = query.eq("status", status);
+    }
+    if (assigneeUserId) {
+      query = query.eq("assignee_user_id", assigneeUserId);
+    }
+    if (alertId) {
+      query = query.eq("alert_id", alertId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       return jsonError("DB_ERROR", error.message, 500);
     }
 
-    return jsonOk({ cases: data ?? [] });
+    const rows = data ?? [];
+    const statusBreakdown = rows.reduce<Record<string, number>>((acc, item) => {
+      acc[item.status] = (acc[item.status] ?? 0) + 1;
+      return acc;
+    }, {});
+    const recoveryImpact = rows
+      .filter((item) => item.status === "resolved" || item.status === "closed")
+      .reduce((sum, item) => sum + Number(item.revenue_impact ?? 0), 0);
+
+    return jsonOk({
+      cases: rows,
+      summary: {
+        total: rows.length,
+        statusBreakdown,
+        recoveryImpact,
+      },
+    });
   });
 }
 
@@ -28,15 +70,37 @@ export async function POST(request: Request) {
     if (!body?.title || typeof body.title !== "string") {
       return jsonError("VALIDATION_ERROR", "title is required", 400);
     }
+    const title = body.title.trim();
+    if (title.length < 3 || title.length > 160) {
+      return jsonError("VALIDATION_ERROR", "title must be between 3 and 160 characters", 400);
+    }
 
     const admin = createAdminClient();
+    const assigneeUserId = typeof body.assigneeUserId === "string" ? body.assigneeUserId : null;
+    if (assigneeUserId) {
+      const { data: membership, error: membershipError } = await admin
+        .from("memberships")
+        .select("id")
+        .eq("tenant_id", auth.tenantId)
+        .eq("user_id", assigneeUserId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (membershipError) {
+        return jsonError("DB_ERROR", membershipError.message, 500);
+      }
+      if (!membership) {
+        return jsonError("VALIDATION_ERROR", "assigneeUserId must belong to tenant", 400);
+      }
+    }
+
     const { data, error } = await admin
       .from("cases")
       .insert({
         tenant_id: auth.tenantId,
-        title: body.title,
+        title,
         status: "open",
-        assignee_user_id: typeof body.assigneeUserId === "string" ? body.assigneeUserId : null,
+        assignee_user_id: assigneeUserId,
         alert_id: typeof body.alertId === "string" ? body.alertId : null,
         revenue_impact: typeof body.revenueImpact === "number" ? body.revenueImpact : 0,
         notes: typeof body.notes === "string" ? body.notes : null,
@@ -75,6 +139,21 @@ export async function PATCH(request: Request) {
       update.status = body.status;
     }
     if (typeof body.assigneeUserId === "string") {
+      const admin = createAdminClient();
+      const { data: membership, error: membershipError } = await admin
+        .from("memberships")
+        .select("id")
+        .eq("tenant_id", auth.tenantId)
+        .eq("user_id", body.assigneeUserId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (membershipError) {
+        return jsonError("DB_ERROR", membershipError.message, 500);
+      }
+      if (!membership) {
+        return jsonError("VALIDATION_ERROR", "assigneeUserId must belong to tenant", 400);
+      }
       update.assignee_user_id = body.assigneeUserId;
     }
     if (typeof body.notes === "string") {
@@ -88,6 +167,33 @@ export async function PATCH(request: Request) {
     }
 
     const admin = createAdminClient();
+    const { data: currentCase, error: currentError } = await admin
+      .from("cases")
+      .select("id, status")
+      .eq("tenant_id", auth.tenantId)
+      .eq("id", body.id)
+      .maybeSingle();
+
+    if (currentError) {
+      return jsonError("DB_ERROR", currentError.message, 500);
+    }
+    if (!currentCase) {
+      return jsonError("NOT_FOUND", "case not found", 404);
+    }
+
+    if (typeof update.status === "string" && update.status !== currentCase.status) {
+      const allowedNext = CASE_TRANSITIONS[currentCase.status] ?? [];
+      if (!allowedNext.includes(update.status)) {
+        return jsonError(
+          "VALIDATION_ERROR",
+          `invalid status transition from ${currentCase.status} to ${update.status}`,
+          400,
+        );
+      }
+    }
+
+    update.updated_at = new Date().toISOString();
+
     const { data, error } = await admin
       .from("cases")
       .update(update)

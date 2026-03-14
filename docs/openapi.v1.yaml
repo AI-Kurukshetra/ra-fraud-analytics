@@ -20,13 +20,27 @@ paths:
       summary: Create confirmed auth user with initial tenant + owner membership.
   /users:
     get:
-      summary: List users/memberships for current tenant.
+      summary: List users/memberships for current tenant (owner/admin).
   /cdrs/ingest:
     post:
       summary: Ingest CDR batch, run fraud detection, and store lineage metadata.
+  /cdrs/ingest-async:
+    get:
+      summary: List async CDR ingest jobs for the active tenant.
+    post:
+      summary: Enqueue async CDR ingest job.
+  /cdrs/jobs/{id}:
+    get:
+      summary: Fetch async CDR ingest job status/details by id.
+  /cdrs/jobs/process:
+    post:
+      summary: Worker endpoint to claim and process pending async CDR jobs.
   /fraud-detection/analyze:
     post:
       summary: Analyze CDRs against fraud/leakage rules.
+  /fraud-detection/model:
+    get:
+      summary: Get model-assisted fraud detection availability/version.
   /revenue-assurance/reconcile:
     post:
       summary: Reconcile billing, mediation, and collections records.
@@ -67,9 +81,9 @@ paths:
       summary: List partner entities.
   /billing-systems:
     get:
-      summary: List connector availability.
+      summary: List connector availability and capability metadata.
     post:
-      summary: Trigger connector sync.
+      summary: Trigger connector sync (optional dry-run and connector subset).
   /network-elements:
     get:
       summary: List network anomaly indicators.
@@ -78,10 +92,10 @@ paths:
       summary: List active fraud/leakage rules.
   /workflows:
     get:
-      summary: List workflow configurations.
+      summary: List workflow configurations and report-distribution readiness.
   /dashboards:
     get:
-      summary: Get dashboard widget metadata.
+      summary: Get dashboard widget metadata (supports channel=web|mobile).
   /settlements:
     get:
       summary: List settlement records.

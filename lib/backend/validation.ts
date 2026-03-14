@@ -68,3 +68,15 @@ export function isReconciliationItem(value: unknown): value is ReconciliationIte
 export function isCaseStatus(value: unknown): value is (typeof CASE_STATUSES)[number] {
   return typeof value === "string" && CASE_STATUSES.includes(value as (typeof CASE_STATUSES)[number]);
 }
+
+export function parseListLimit(value: string | null, defaults = { fallback: 100, min: 1, max: 500 }) {
+  if (!value) return defaults.fallback;
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return defaults.fallback;
+  return Math.min(defaults.max, Math.max(defaults.min, parsed));
+}
+
+export function parseBooleanQuery(value: string | null) {
+  if (!value) return false;
+  return value === "1" || value.toLowerCase() === "true" || value.toLowerCase() === "yes";
+}

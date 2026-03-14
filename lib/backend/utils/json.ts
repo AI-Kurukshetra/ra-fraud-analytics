@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { fail, ok } from "@/lib/backend/contracts/http";
 
 export function jsonOk<T>(data: T, meta?: Record<string, unknown>, status = 200) {
-  return NextResponse.json(ok(data, meta), { status });
+  return NextResponse.json(
+    ok(data, {
+      timestamp: new Date().toISOString(),
+      apiVersion: "v1",
+      ...(meta ?? {}),
+    }),
+    { status },
+  );
 }
 
 export function jsonError(

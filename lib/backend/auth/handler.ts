@@ -2,7 +2,7 @@ import { jsonError } from "@/lib/backend/utils/json";
 import { requireAuthContext, requireRole, type AuthContext } from "@/lib/backend/auth/tenant-guard";
 
 type AuthOptions = {
-  allowedRoles?: string[];
+  allowedRoles?: AuthContext["role"][];
 };
 
 export async function withAuth(
@@ -21,6 +21,9 @@ export async function withAuth(
       return jsonError("UNAUTHORIZED", message, 401);
     }
     if (message === "Missing x-tenant-id header") {
+      return jsonError("BAD_REQUEST", message, 400);
+    }
+    if (message === "Invalid x-tenant-id header") {
       return jsonError("BAD_REQUEST", message, 400);
     }
     if (message === "Forbidden for tenant" || message === "Insufficient role") {

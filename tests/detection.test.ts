@@ -57,4 +57,26 @@ describe("detectFraudBatch", () => {
 
     expect(alerts.length).toBe(1);
   });
+
+  it("detects interconnect leakage for under-billed CDR", () => {
+    const alerts = detectFraudBatch([
+      {
+        tenantId: "t1",
+        subscriberId: "s2",
+        msisdn: "456",
+        callType: "voice",
+        originCountry: "IN",
+        destinationCountry: "IN",
+        durationSeconds: 300,
+        chargeAmount: 100,
+        billedAmount: 70,
+        eventTime: new Date().toISOString(),
+        sourceSystem: "billing",
+      },
+    ]);
+
+    expect(alerts.length).toBe(1);
+    expect(alerts[0]?.fraudType).toBe("interconnect_leakage");
+    expect(alerts[0]?.severity).toBe("low");
+  });
 });

@@ -6,8 +6,12 @@ import { createAdminClient } from "@/lib/backend/db";
 export type AuthContext = {
   user: User;
   tenantId: string;
-  role: string;
+  role: "owner" | "admin" | "analyst" | "viewer";
 };
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
 
 export async function requireAuthContext(): Promise<AuthContext> {
   const serverClient = await createServerClient();
@@ -21,9 +25,12 @@ export async function requireAuthContext(): Promise<AuthContext> {
   }
 
   const requestHeaders = await headers();
-  const tenantId = requestHeaders.get("x-tenant-id");
+  const tenantId = requestHeaders.get("x-tenant-id")?.trim();
   if (!tenantId) {
     throw new Error("Missing x-tenant-id header");
+  }
+  if (!isUuid(tenantId)) {
+    throw new Error("Invalid x-tenant-id header");
   }
 
   const admin = createAdminClient();
@@ -42,11 +49,11 @@ export async function requireAuthContext(): Promise<AuthContext> {
   return {
     user,
     tenantId,
-    role: membership.role,
+    role: membership.role as AuthContext["role"],
   };
 }
 
-export function requireRole(auth: AuthContext, allowedRoles: string[]) {
+export function requireRole(auth: AuthContext, allowedRoles: AuthContext["role"][]) {
   if (!allowedRoles.includes(auth.role)) {
     throw new Error("Insufficient role");
   }

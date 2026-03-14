@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "ml:train": "node scripts/ml/train-fraud-model.mjs",
+    "data:generate": "node scripts/generate-synthetic-data.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

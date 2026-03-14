@@ -15,7 +15,7 @@ describe("reconcile", () => {
 
     expect(results[0]?.status).toBe("mismatch");
     expect(results[0]?.leakageAmount).toBe(500);
-    expect(results[0]?.severity).toBe("medium");
+    expect(results[0]?.severity).toBe("high");
   });
 
   it("marks matched when no leakage", () => {

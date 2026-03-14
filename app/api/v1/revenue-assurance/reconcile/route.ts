@@ -5,6 +5,9 @@ import { reconcile } from "@/lib/backend/engines/reconciliation";
 import { isReconciliationItem } from "@/lib/backend/validation";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
+const MAX_RECONCILE_ITEMS = 20000;
+const INSERT_CHUNK_SIZE = 1000;
+
 export async function POST(request: Request) {
   return withAuth(async (auth) => {
     const body = await request.json().catch(() => null);
@@ -13,24 +16,30 @@ export async function POST(request: Request) {
     if (!Array.isArray(items) || items.some((item) => !isReconciliationItem(item))) {
       return jsonError("VALIDATION_ERROR", "Invalid reconciliation payload", 400);
     }
+    if (items.length > MAX_RECONCILE_ITEMS) {
+      return jsonError("VALIDATION_ERROR", `items exceeds max batch size of ${MAX_RECONCILE_ITEMS}`, 400);
+    }
 
     const normalized = items.map((item) => ({ ...item, tenantId: auth.tenantId }));
     const results = reconcile(normalized);
 
     const admin = createAdminClient();
-    const { error } = await admin.from("reconciliation_results").insert(
-      results.map((result) => ({
-        tenant_id: auth.tenantId,
-        record_key: result.recordKey,
-        mismatch_amount: result.mismatchAmount,
-        leakage_amount: result.leakageAmount,
-        severity: result.severity,
-        status: result.status,
-      })),
-    );
+    for (let start = 0; start < results.length; start += INSERT_CHUNK_SIZE) {
+      const chunk = results.slice(start, start + INSERT_CHUNK_SIZE);
+      const { error } = await admin.from("reconciliation_results").insert(
+        chunk.map((result) => ({
+          tenant_id: auth.tenantId,
+          record_key: result.recordKey,
+          mismatch_amount: result.mismatchAmount,
+          leakage_amount: result.leakageAmount,
+          severity: result.severity,
+          status: result.status,
+        })),
+      );
 
-    if (error) {
-      return jsonError("DB_ERROR", error.message, 500);
+      if (error) {
+        return jsonError("DB_ERROR", error.message, 500);
+      }
     }
 
     await writeAuditLog({

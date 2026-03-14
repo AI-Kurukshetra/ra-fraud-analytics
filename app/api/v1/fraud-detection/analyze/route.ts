@@ -3,6 +3,8 @@ import { detectFraudBatch } from "@/lib/backend/engines/detection";
 import { parseCdrBatch } from "@/lib/backend/validation";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
+const MAX_ANALYZE_BATCH = 20000;
+
 export async function POST(request: Request) {
   return withAuth(async (auth) => {
     const body = await request.json().catch(() => null);
@@ -10,6 +12,9 @@ export async function POST(request: Request) {
 
     if (!parsed.ok || !parsed.data) {
       return jsonError("VALIDATION_ERROR", parsed.error ?? "Invalid payload", 400);
+    }
+    if (parsed.data.length > MAX_ANALYZE_BATCH) {
+      return jsonError("VALIDATION_ERROR", `records exceeds max batch size of ${MAX_ANALYZE_BATCH}`, 400);
     }
 
     const alerts = detectFraudBatch(parsed.data.map((r) => ({ ...r, tenantId: auth.tenantId })));

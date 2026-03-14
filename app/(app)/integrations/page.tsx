@@ -6,6 +6,8 @@ import { useAuthContext } from "@/components/auth-context";
 import { apiClient, ApiClientError } from "@/lib/frontend/api-client";
 import type { BillingConnector, ConnectorSyncResult, QualityEvent } from "@/lib/frontend/types";
 
+const EXPECTED_CONNECTORS = ["amdocs", "oracle", "ericsson", "huawei"] as const;
+
 export default function IntegrationsPage() {
   const { tenantId } = useAuthContext();
   const [connectors, setConnectors] = useState<BillingConnector[]>([]);
@@ -14,6 +16,12 @@ export default function IntegrationsPage() {
   const [syncing, setSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const connectorMap = new Map(connectors.map((item) => [item.name.toLowerCase(), item]));
+  const expectedCoverage = EXPECTED_CONNECTORS.map((name) => ({
+    name,
+    available: connectorMap.has(name),
+  }));
 
   useEffect(() => {
     const load = async () => {
@@ -62,6 +70,16 @@ export default function IntegrationsPage() {
       <section className="grid-two">
         <article className="panel">
           <h3>Billing connectors</h3>
+          <ul className="list compact">
+            {expectedCoverage.map((item) => (
+              <li key={item.name} className="list-item">
+                <p className="list-title">{item.name}</p>
+                <span className={`badge ${item.available ? "connected" : "warning"}`}>
+                  {item.available ? "available" : "not configured"}
+                </span>
+              </li>
+            ))}
+          </ul>
           <ul className="list">
             {connectors.map((connector) => (
               <li key={connector.name} className="list-item">

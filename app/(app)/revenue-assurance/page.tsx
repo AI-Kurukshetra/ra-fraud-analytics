@@ -14,24 +14,23 @@ import type {
 } from "@/lib/frontend/types";
 import type { ReconciliationItem } from "@/lib/backend/types";
 
-const SAMPLE_ITEMS: ReconciliationItem[] = [
+type ReconciliationTemplateItem = Omit<ReconciliationItem, "tenantId">;
+
+const SAMPLE_ITEMS: ReconciliationTemplateItem[] = [
   {
     recordKey: "cdr-2001",
-    tenantId: "placeholder",
     billedAmount: 15,
     mediatedAmount: 15,
     collectedAmount: 14,
   },
   {
     recordKey: "cdr-2002",
-    tenantId: "placeholder",
     billedAmount: 21,
     mediatedAmount: 19,
     collectedAmount: 19,
   },
   {
     recordKey: "cdr-2003",
-    tenantId: "placeholder",
     billedAmount: 7,
     mediatedAmount: 7,
     collectedAmount: 7,
@@ -47,6 +46,7 @@ export default function RevenueAssurancePage() {
   const [interconnect, setInterconnect] = useState<InterconnectResult | null>(null);
   const [roaming, setRoaming] = useState<RoamingResult | null>(null);
   const [recovery, setRecovery] = useState<RecoveryMetrics | null>(null);
+  const [networkSort, setNetworkSort] = useState<"impact" | "anomaly">("impact");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -296,8 +296,29 @@ export default function RevenueAssurancePage() {
 
         <article className="panel">
           <h3>Network anomaly monitoring</h3>
+          <div className="inline-form">
+            <label className="muted" htmlFor="network-sort">
+              Sort by
+            </label>
+            <select
+              id="network-sort"
+              className="input"
+              value={networkSort}
+              onChange={(event) => setNetworkSort(event.target.value as "impact" | "anomaly")}
+            >
+              <option value="impact">Revenue impact</option>
+              <option value="anomaly">Anomaly score</option>
+            </select>
+          </div>
           <ul className="list">
-            {networkElements.slice(0, 8).map((item) => (
+            {[...networkElements]
+              .sort((a, b) =>
+                networkSort === "impact"
+                  ? Number(b.revenue_impact) - Number(a.revenue_impact)
+                  : Number(b.anomaly_score) - Number(a.anomaly_score),
+              )
+              .slice(0, 8)
+              .map((item) => (
               <li key={item.id} className="list-item">
                 <div>
                   <p className="list-title">

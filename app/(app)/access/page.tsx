@@ -54,6 +54,11 @@ export default function AccessPage() {
     }, {});
   }, [users]);
 
+  const activeMembershipCount = useMemo(
+    () => users.filter((item) => item.is_active).length,
+    [users],
+  );
+
   return (
     <div className="stack-lg">
       <div>
@@ -104,6 +109,13 @@ export default function AccessPage() {
               <li>Total rules: {rules.length}</li>
               <li>Active workflows: {workflows.filter((item) => item.is_active).length}</li>
               <li>Total workflows: {workflows.length}</li>
+            </ul>
+            <h3>Security posture</h3>
+            <ul className="list compact">
+              <li>Active memberships: {activeMembershipCount}</li>
+              <li>RBAC roles enforced: owner, admin, analyst, viewer</li>
+              <li>Audit logging: enabled on privileged API actions</li>
+              <li>Mobile monitoring feed: available via dashboard mobile channel</li>
             </ul>
           </article>
         </section>
