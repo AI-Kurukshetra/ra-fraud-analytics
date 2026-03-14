@@ -1,0 +1,98 @@
+openapi: 3.1.0
+info:
+  title: TeleGuard Pro Backend API
+  version: 1.0.0
+  description: Versioned backend contracts for Next.js + Supabase APIs.
+servers:
+  - url: /api/v1
+paths:
+  /auth/session:
+    get:
+      summary: Get current authenticated user session with tenant context.
+  /auth/memberships:
+    get:
+      summary: List authenticated user memberships across tenants.
+  /auth/bootstrap:
+    post:
+      summary: Create initial tenant and owner membership for authenticated user.
+  /auth/signup:
+    post:
+      summary: Create confirmed auth user with initial tenant + owner membership.
+  /users:
+    get:
+      summary: List users/memberships for current tenant.
+  /cdrs/ingest:
+    post:
+      summary: Ingest CDR batch, run fraud detection, and store lineage metadata.
+  /fraud-detection/analyze:
+    post:
+      summary: Analyze CDRs against fraud/leakage rules.
+  /revenue-assurance/reconcile:
+    post:
+      summary: Reconcile billing, mediation, and collections records.
+  /revenue-assurance/interconnect:
+    post:
+      summary: Validate interconnect tariff compliance.
+  /revenue-assurance/roaming:
+    post:
+      summary: Validate roaming billing and detect anomalies.
+  /revenue-assurance/recovery:
+    post:
+      summary: Calculate recovery impact metrics.
+  /alerts:
+    get:
+      summary: Fetch fraud/leakage alerts.
+    patch:
+      summary: Update alert status (new, acknowledged, closed).
+  /cases:
+    get:
+      summary: List case management records.
+    post:
+      summary: Create case.
+    patch:
+      summary: Update case status/assignment/notes.
+  /reports:
+    get:
+      summary: List generated reports.
+    post:
+      summary: Trigger automated report generation.
+  /analytics:
+    get:
+      summary: Fetch aggregated KPI counts.
+  /reconciliation:
+    get:
+      summary: Fetch reconciliation history.
+  /partners:
+    get:
+      summary: List partner entities.
+  /billing-systems:
+    get:
+      summary: List connector availability.
+    post:
+      summary: Trigger connector sync.
+  /network-elements:
+    get:
+      summary: List network anomaly indicators.
+  /rules:
+    get:
+      summary: List active fraud/leakage rules.
+  /workflows:
+    get:
+      summary: List workflow configurations.
+  /dashboards:
+    get:
+      summary: Get dashboard widget metadata.
+  /settlements:
+    get:
+      summary: List settlement records.
+  /compliance:
+    get:
+      summary: Aggregate audit, quality, and lineage events.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []
