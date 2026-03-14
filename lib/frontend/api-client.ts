@@ -3,11 +3,17 @@ import type {
   AlertListItem,
   ApiEnvelope,
   AnalyticsKpis,
+  AnalyticsTimelineItem,
   AuditEvent,
   BootstrapTenantResult,
   DashboardCard,
   BillingConnector,
   CaseListItem,
+  CaseSummary,
+  CdrIngestJob,
+  CdrJobProcessResult,
+  FraudModelStatus,
+  ExistingCdrAnalysisResult,
   InterconnectResult,
   LineageEvent,
   ConnectorSyncResult,
@@ -158,6 +164,13 @@ export const apiClient = {
     });
   },
 
+  getCasesWithSummary: async (tenantId: string) => {
+    return request<{ cases: CaseListItem[]; summary?: CaseSummary }>("/api/v1/cases", {
+      method: "GET",
+      tenantId,
+    });
+  },
+
   createCase: async (
     tenantId: string,
     payload: {
@@ -247,6 +260,21 @@ export const apiClient = {
     });
   },
 
+  getAnalyticsWindow: async (tenantId: string, windowDays: number) => {
+    return request<{
+      kpis: AnalyticsKpis;
+      timeline: AnalyticsTimelineItem[];
+      recovery?: { recoveredAmount: number };
+      distributions?: {
+        alertsBySeverity: Record<string, number>;
+        caseStatusBreakdown: Record<string, number>;
+      };
+    }>(`/api/v1/analytics?windowDays=${windowDays}`, {
+      method: "GET",
+      tenantId,
+    });
+  },
+
   getReports: async (tenantId: string) => {
     return request<{ reports: ReportRecord[] }>("/api/v1/reports", {
       method: "GET",
@@ -275,6 +303,21 @@ export const apiClient = {
 
   getReconciliationHistory: async (tenantId: string) => {
     return request<{ reconciliation: ReconciliationHistoryItem[] }>("/api/v1/reconciliation", {
+      method: "GET",
+      tenantId,
+    });
+  },
+
+  getReconciliationSummary: async (tenantId: string, limit = 500) => {
+    return request<{
+      reconciliation: ReconciliationHistoryItem[];
+      summary: {
+        total: number;
+        totalLeakageAmount: number;
+        totalMismatchAmount: number;
+        bySeverity: Record<string, number>;
+      };
+    }>(`/api/v1/reconciliation?limit=${limit}`, {
       method: "GET",
       tenantId,
     });
@@ -356,6 +399,66 @@ export const apiClient = {
       method: "POST",
       tenantId,
       body: JSON.stringify(payload),
+    });
+  },
+
+  enqueueCdrIngestJob: async (
+    tenantId: string,
+    payload: { records: CdrRecord[]; priority?: number; maxAttempts?: number },
+  ) => {
+    return request<{ job: CdrIngestJob }>("/api/v1/cdrs/ingest-async", {
+      method: "POST",
+      tenantId,
+      body: JSON.stringify(payload),
+    });
+  },
+
+  listCdrIngestJobs: async (
+    tenantId: string,
+    params?: { status?: CdrIngestJob["status"]; limit?: number },
+  ) => {
+    const search = new URLSearchParams();
+    if (params?.status) {
+      search.set("status", params.status);
+    }
+    if (typeof params?.limit === "number") {
+      search.set("limit", String(params.limit));
+    }
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<{ jobs: CdrIngestJob[] }>(`/api/v1/cdrs/ingest-async${suffix}`, {
+      method: "GET",
+      tenantId,
+    });
+  },
+
+  processCdrJobs: async (tenantId: string, payload?: { maxJobs?: number; workerId?: string }) => {
+    return request<CdrJobProcessResult>("/api/v1/cdrs/jobs/process", {
+      method: "POST",
+      tenantId,
+      body: JSON.stringify(payload ?? {}),
+    });
+  },
+
+  getFraudModelStatus: async (tenantId: string) => {
+    return request<FraudModelStatus>("/api/v1/fraud-detection/model", {
+      method: "GET",
+      tenantId,
+    });
+  },
+
+  analyzeExistingCdrs: async (
+    tenantId: string,
+    payload?: {
+      limit?: number;
+      sourceSystem?: "billing" | "mediation" | "network";
+      dateFrom?: string;
+      dateTo?: string;
+    },
+  ) => {
+    return request<ExistingCdrAnalysisResult>("/api/v1/cdrs/analyze-existing", {
+      method: "POST",
+      tenantId,
+      body: JSON.stringify(payload ?? {}),
     });
   },
 };

@@ -1,4 +1,5 @@
 import { withAuth } from "@/lib/backend/auth/handler";
+import { writeAuditLog } from "@/lib/backend/audit";
 import { createAdminClient } from "@/lib/backend/db";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
@@ -94,6 +95,24 @@ export async function GET(request: Request) {
       }
     }
 
+    const timeline = Array.from(dailyMap.entries()).map(([date, values]) => ({
+      date,
+      ...values,
+      leakage: Number(values.leakage.toFixed(2)),
+    }));
+
+    await writeAuditLog({
+      tenantId: auth.tenantId,
+      actorUserId: auth.user.id,
+      action: "analytics_view",
+      resourceType: "analytics",
+      payload: {
+        windowDays,
+        timelinePoints: timeline.length,
+        alertRows: (alerts ?? []).length,
+      },
+    });
+
     return jsonOk({
       kpis: {
         cdrCount: cdrCount ?? 0,
@@ -107,11 +126,7 @@ export async function GET(request: Request) {
         alertsBySeverity,
         caseStatusBreakdown,
       },
-      timeline: Array.from(dailyMap.entries()).map(([date, values]) => ({
-        date,
-        ...values,
-        leakage: Number(values.leakage.toFixed(2)),
-      })),
+      timeline,
     });
   }, { allowedRoles: ["owner", "admin", "analyst", "viewer"] });
 }

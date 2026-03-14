@@ -9,6 +9,8 @@ export type AuthContext = {
   role: "owner" | "admin" | "analyst" | "viewer";
 };
 
+const MEMBERSHIP_ROLES: AuthContext["role"][] = ["owner", "admin", "analyst", "viewer"];
+
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -44,6 +46,9 @@ export async function requireAuthContext(): Promise<AuthContext> {
 
   if (membershipError || !membership) {
     throw new Error("Forbidden for tenant");
+  }
+  if (!MEMBERSHIP_ROLES.includes(membership.role as AuthContext["role"])) {
+    throw new Error("Invalid tenant role");
   }
 
   return {

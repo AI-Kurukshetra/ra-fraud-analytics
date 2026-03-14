@@ -40,7 +40,14 @@ export async function POST(request: Request) {
       return jsonError("VALIDATION_ERROR", `Unknown connector(s): ${invalidNames.join(", ")}`, 400);
     }
 
-    const dryRun = Boolean(body?.dryRun);
+    const dryRun =
+      body?.dryRun === true ||
+      body?.dryRun === "true" ||
+      body?.dryRun === 1 ||
+      body?.dryRun === "1";
+    if (requestedNames.length > 20) {
+      return jsonError("VALIDATION_ERROR", "connectorNames supports at most 20 entries", 400);
+    }
     const results = await syncAllConnectors(auth.tenantId, {
       dryRun,
       connectorNames: requestedNames,

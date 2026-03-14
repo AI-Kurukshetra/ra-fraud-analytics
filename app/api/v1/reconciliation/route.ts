@@ -1,16 +1,25 @@
 import { withAuth } from "@/lib/backend/auth/handler";
+import { writeAuditLog } from "@/lib/backend/audit";
 import { createAdminClient } from "@/lib/backend/db";
+import { parseDateQuery, parseListLimit, parseStringQuery } from "@/lib/backend/validation";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
 export async function GET(request: Request) {
   return withAuth(async (auth) => {
     const url = new URL(request.url);
-    const status = url.searchParams.get("status");
-    const severity = url.searchParams.get("severity");
-    const dateFrom = url.searchParams.get("dateFrom");
-    const dateTo = url.searchParams.get("dateTo");
-    const limitParam = Number(url.searchParams.get("limit") ?? "200");
-    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 1000) : 200;
+    const status = parseStringQuery(url.searchParams.get("status"), 24);
+    const severity = parseStringQuery(url.searchParams.get("severity"), 24);
+    const dateFromRaw = url.searchParams.get("dateFrom");
+    const dateToRaw = url.searchParams.get("dateTo");
+    const dateFrom = parseDateQuery(dateFromRaw);
+    const dateTo = parseDateQuery(dateToRaw);
+    const limit = parseListLimit(url.searchParams.get("limit"), { fallback: 200, min: 1, max: 1000 });
+    if (dateFromRaw && !dateFrom) {
+      return jsonError("VALIDATION_ERROR", "dateFrom must be a valid date", 400);
+    }
+    if (dateToRaw && !dateTo) {
+      return jsonError("VALIDATION_ERROR", "dateTo must be a valid date", 400);
+    }
 
     const admin = createAdminClient();
     let query = admin
@@ -47,7 +56,7 @@ export async function GET(request: Request) {
       return acc;
     }, {});
 
-    return jsonOk({
+    const response = {
       reconciliation: rows,
       summary: {
         total: rows.length,
@@ -55,6 +64,21 @@ export async function GET(request: Request) {
         totalMismatchAmount: Number(totalMismatchAmount.toFixed(2)),
         bySeverity,
       },
+    };
+
+    await writeAuditLog({
+      tenantId: auth.tenantId,
+      actorUserId: auth.user.id,
+      action: "reconciliation_view",
+      resourceType: "reconciliation_results",
+      payload: {
+        limit,
+        status: status ?? "all",
+        severity: severity ?? "all",
+        count: response.summary.total,
+      },
     });
+
+    return jsonOk(response);
   }, { allowedRoles: ["owner", "admin", "analyst", "viewer"] });
 }

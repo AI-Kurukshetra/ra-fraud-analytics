@@ -49,6 +49,9 @@ export async function enqueueCdrIngestJob(params: {
   priority?: number;
   maxAttempts?: number;
 }) {
+  if (!Array.isArray(params.records) || params.records.length === 0) {
+    throw new Error("records must be a non-empty array");
+  }
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("cdr_ingest_jobs")
@@ -182,6 +185,24 @@ export async function processCdrIngestJobs(params: {
     processed += 1;
     const payload = (job as unknown as { payload?: { records?: CdrRecord[] } }).payload;
     const records = Array.isArray(payload?.records) ? payload.records : [];
+    if (records.length === 0) {
+      const { error: failEmptyError } = await admin
+        .from("cdr_ingest_jobs")
+        .update({
+          attempts: job.attempts + 1,
+          status: "failed",
+          worker_id: params.workerId,
+          completed_at: new Date().toISOString(),
+          error_message: "Job payload has no records",
+        })
+        .eq("id", job.id)
+        .eq("tenant_id", job.tenant_id);
+      if (failEmptyError) {
+        throw new Error(failEmptyError.message);
+      }
+      failed += 1;
+      continue;
+    }
 
     try {
       const result = await processCdrIngest({

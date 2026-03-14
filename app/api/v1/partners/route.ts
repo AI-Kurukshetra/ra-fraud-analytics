@@ -1,13 +1,14 @@
 import { withAuth } from "@/lib/backend/auth/handler";
 import { writeAuditLog } from "@/lib/backend/audit";
 import { createAdminClient } from "@/lib/backend/db";
-import { parseListLimit } from "@/lib/backend/validation";
+import { parseListLimit, parseStringQuery } from "@/lib/backend/validation";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
 export async function GET(request: Request) {
   return withAuth(async (auth) => {
     const url = new URL(request.url);
-    const partnerType = url.searchParams.get("partnerType")?.trim();
+    const partnerType = parseStringQuery(url.searchParams.get("partnerType"), 40);
+    const status = parseStringQuery(url.searchParams.get("status"), 24);
     const limit = parseListLimit(url.searchParams.get("limit"), { fallback: 200, min: 1, max: 500 });
 
     const admin = createAdminClient();
@@ -20,6 +21,9 @@ export async function GET(request: Request) {
     if (partnerType) {
       query = query.eq("partner_type", partnerType);
     }
+    if (status) {
+      query = query.eq("status", status);
+    }
     const { data, error } = await query;
 
     if (error) {
@@ -31,9 +35,9 @@ export async function GET(request: Request) {
       actorUserId: auth.user.id,
       action: "partners_list",
       resourceType: "partner",
-      payload: { partnerType: partnerType ?? "all", limit, count: data?.length ?? 0 },
+      payload: { partnerType: partnerType ?? "all", status: status ?? "all", limit, count: data?.length ?? 0 },
     });
 
-    return jsonOk({ partners: data ?? [] }, { limit, partnerType: partnerType ?? "all" });
+    return jsonOk({ partners: data ?? [] }, { limit, partnerType: partnerType ?? "all", status: status ?? "all" });
   }, { allowedRoles: ["owner", "admin", "analyst", "viewer"] });
 }

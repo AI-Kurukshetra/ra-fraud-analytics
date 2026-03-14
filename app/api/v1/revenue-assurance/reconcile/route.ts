@@ -16,6 +16,23 @@ export async function POST(request: Request) {
     if (!Array.isArray(items) || items.some((item) => !isReconciliationItem(item))) {
       return jsonError("VALIDATION_ERROR", "Invalid reconciliation payload", 400);
     }
+    if (
+      items.some(
+        (item) =>
+          !Number.isFinite(item.billedAmount) ||
+          !Number.isFinite(item.mediatedAmount) ||
+          !Number.isFinite(item.collectedAmount) ||
+          item.billedAmount < 0 ||
+          item.mediatedAmount < 0 ||
+          item.collectedAmount < 0,
+      )
+    ) {
+      return jsonError(
+        "VALIDATION_ERROR",
+        "billedAmount, mediatedAmount and collectedAmount must be finite numbers >= 0",
+        400,
+      );
+    }
     if (items.length > MAX_RECONCILE_ITEMS) {
       return jsonError("VALIDATION_ERROR", `items exceeds max batch size of ${MAX_RECONCILE_ITEMS}`, 400);
     }

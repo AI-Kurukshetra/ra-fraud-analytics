@@ -1,7 +1,7 @@
 import { withAuth } from "@/lib/backend/auth/handler";
 import { writeAuditLog } from "@/lib/backend/audit";
 import { createAdminClient } from "@/lib/backend/db";
-import { parseListLimit } from "@/lib/backend/validation";
+import { parseListLimit, parseStringQuery } from "@/lib/backend/validation";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
 export async function GET(request: Request) {
@@ -9,6 +9,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const limit = parseListLimit(url.searchParams.get("limit"), { fallback: 100, min: 1, max: 500 });
     const activeOnly = url.searchParams.get("activeOnly") !== "false";
+    const role = parseStringQuery(url.searchParams.get("role"), 24);
 
     const admin = createAdminClient();
     let query = admin
@@ -18,6 +19,9 @@ export async function GET(request: Request) {
       .limit(limit);
     if (activeOnly) {
       query = query.eq("is_active", true);
+    }
+    if (role) {
+      query = query.eq("role", role);
     }
     const { data, error } = await query;
 
@@ -30,9 +34,9 @@ export async function GET(request: Request) {
       actorUserId: auth.user.id,
       action: "users_list",
       resourceType: "membership",
-      payload: { limit, activeOnly, count: data?.length ?? 0 },
+      payload: { limit, activeOnly, role: role ?? "all", count: data?.length ?? 0 },
     });
 
-    return jsonOk({ users: data ?? [] }, { limit, activeOnly });
+    return jsonOk({ users: data ?? [] }, { limit, activeOnly, role: role ?? "all" });
   }, { allowedRoles: ["owner", "admin"] });
 }

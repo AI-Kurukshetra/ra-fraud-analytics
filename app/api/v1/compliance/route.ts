@@ -1,13 +1,18 @@
 import { withAuth } from "@/lib/backend/auth/handler";
+import { writeAuditLog } from "@/lib/backend/audit";
 import { createAdminClient } from "@/lib/backend/db";
+import { parseDateQuery, parseListLimit } from "@/lib/backend/validation";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
 export async function GET(request: Request) {
   return withAuth(async (auth) => {
     const url = new URL(request.url);
-    const limitParam = Number(url.searchParams.get("limit") ?? "50");
-    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 500) : 50;
-    const since = url.searchParams.get("since");
+    const limit = parseListLimit(url.searchParams.get("limit"), { fallback: 50, min: 1, max: 500 });
+    const sinceRaw = url.searchParams.get("since");
+    const since = parseDateQuery(sinceRaw);
+    if (sinceRaw && !since) {
+      return jsonError("VALIDATION_ERROR", "since must be a valid date", 400);
+    }
 
     const admin = createAdminClient();
 
@@ -62,7 +67,7 @@ export async function GET(request: Request) {
         ? null
         : Number((quality.reduce((sum, item) => sum + Number(item.quality_score), 0) / quality.length).toFixed(2));
 
-    return jsonOk({
+    const response = {
       auditEvents: auditEvents ?? [],
       qualityEvents: qualityEvents ?? [],
       lineageEvents: lineageEvents ?? [],
@@ -74,6 +79,16 @@ export async function GET(request: Request) {
         averageQualityScore,
         latestReportAt: reportEvents?.[0]?.generated_at ?? null,
       },
+    };
+
+    await writeAuditLog({
+      tenantId: auth.tenantId,
+      actorUserId: auth.user.id,
+      action: "compliance_view",
+      resourceType: "compliance",
+      payload: { limit, since: since ?? null, auditCount: response.summary.auditCount },
     });
+
+    return jsonOk(response);
   }, { allowedRoles: ["owner", "admin", "analyst", "viewer"] });
 }

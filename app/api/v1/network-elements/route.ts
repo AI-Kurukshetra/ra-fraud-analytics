@@ -1,7 +1,7 @@
 import { withAuth } from "@/lib/backend/auth/handler";
 import { writeAuditLog } from "@/lib/backend/audit";
 import { createAdminClient } from "@/lib/backend/db";
-import { parseListLimit } from "@/lib/backend/validation";
+import { parseListLimit, parseStringQuery } from "@/lib/backend/validation";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
 export async function GET(request: Request) {
@@ -9,16 +9,25 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const limit = parseListLimit(url.searchParams.get("limit"), { fallback: 200, min: 1, max: 500 });
     const minAnomaly = Number(url.searchParams.get("minAnomaly") ?? 0);
+    const region = parseStringQuery(url.searchParams.get("region"), 40);
+    const status = parseStringQuery(url.searchParams.get("status"), 24);
+    const sortBy = url.searchParams.get("sortBy") === "revenue_impact" ? "revenue_impact" : "anomaly_score";
 
     const admin = createAdminClient();
     let query = admin
       .from("network_elements")
       .select("id, element_code, element_type, region, status, anomaly_score, revenue_impact")
       .eq("tenant_id", auth.tenantId)
-      .order("anomaly_score", { ascending: false })
+      .order(sortBy, { ascending: false })
       .limit(limit);
     if (!Number.isNaN(minAnomaly) && minAnomaly > 0) {
       query = query.gte("anomaly_score", minAnomaly);
+    }
+    if (region) {
+      query = query.eq("region", region);
+    }
+    if (status) {
+      query = query.eq("status", status);
     }
     const { data, error } = await query;
 
@@ -31,9 +40,16 @@ export async function GET(request: Request) {
       actorUserId: auth.user.id,
       action: "network_elements_list",
       resourceType: "network_element",
-      payload: { limit, minAnomaly, count: data?.length ?? 0 },
+      payload: {
+        limit,
+        minAnomaly,
+        region: region ?? "all",
+        status: status ?? "all",
+        sortBy,
+        count: data?.length ?? 0,
+      },
     });
 
-    return jsonOk({ networkElements: data ?? [] }, { limit, minAnomaly });
+    return jsonOk({ networkElements: data ?? [] }, { limit, minAnomaly, region, status, sortBy });
   }, { allowedRoles: ["owner", "admin", "analyst", "viewer"] });
 }

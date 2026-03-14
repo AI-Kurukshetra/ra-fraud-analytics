@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "ml:train": "node scripts/ml/train-fraud-model.mjs",
-    "data:generate": "node scripts/generate-synthetic-data.mjs"
+    "data:generate": "node scripts/generate-synthetic-data.mjs",
+    "data:generate:telecom": "node scripts/generate-synthetic-telecom-data.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

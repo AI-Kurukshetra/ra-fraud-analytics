@@ -1,7 +1,7 @@
 import { withAuth } from "@/lib/backend/auth/handler";
 import { writeAuditLog } from "@/lib/backend/audit";
 import { createAdminClient } from "@/lib/backend/db";
-import { jsonOk } from "@/lib/backend/utils/json";
+import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
 export async function GET(request: Request) {
   return withAuth(async (auth) => {
@@ -9,10 +9,14 @@ export async function GET(request: Request) {
     const channel = url.searchParams.get("channel") === "mobile" ? "mobile" : "web";
     const admin = createAdminClient();
 
-    const [{ count: alertCount }, { count: caseCount }] = await Promise.all([
+    const [{ count: alertCount, error: alertError }, { count: caseCount, error: caseError }] = await Promise.all([
       admin.from("alerts").select("*", { count: "exact", head: true }).eq("tenant_id", auth.tenantId),
       admin.from("cases").select("*", { count: "exact", head: true }).eq("tenant_id", auth.tenantId),
     ]);
+    const dbError = alertError ?? caseError;
+    if (dbError) {
+      return jsonError("DB_ERROR", dbError.message, 500);
+    }
 
     const cards =
       channel === "mobile"

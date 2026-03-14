@@ -75,6 +75,11 @@ export type CaseListItem = {
   updated_at: string;
 };
 
+export type CaseSummary = {
+  statusBreakdown: Record<string, number>;
+  recoveryImpact: number;
+};
+
 export type ReconciliationResult = {
   recordKey: string;
   mismatchAmount: number;
@@ -123,6 +128,14 @@ export type AnalyticsKpis = {
   cdrCount: number;
   alertCount: number;
   caseCount: number;
+};
+
+export type AnalyticsTimelineItem = {
+  date: string;
+  alerts: number;
+  cases: number;
+  reconciliations: number;
+  leakage: number;
 };
 
 export type ReportRecord = {
@@ -256,4 +269,44 @@ export type ConnectorSyncResult = {
   recordsPulled: number;
   syncedAt: string;
   details?: string;
+};
+
+export type CdrIngestJob = {
+  id: string;
+  tenantId: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  priority: number;
+  recordCount: number;
+  attempts: number;
+  maxAttempts: number;
+  workerId: string | null;
+  createdBy: string | null;
+  errorMessage: string | null;
+  result: Record<string, unknown> | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CdrJobProcessResult = {
+  processed: number;
+  completed: number;
+  failed: number;
+  workerId: string;
+};
+
+export type FraudModelStatus = {
+  enabled: boolean;
+  available: boolean;
+  version?: string;
+  trainedAt?: string;
+  classes?: string[];
+  featureCount?: number;
+};
+
+export type ExistingCdrAnalysisResult = {
+  scanned: number;
+  alertsGenerated: number;
+  byFraudType: Record<string, number>;
 };

@@ -26,7 +26,11 @@ export async function withAuth(
     if (message === "Invalid x-tenant-id header") {
       return jsonError("BAD_REQUEST", message, 400);
     }
-    if (message === "Forbidden for tenant" || message === "Insufficient role") {
+    if (
+      message === "Forbidden for tenant" ||
+      message === "Insufficient role" ||
+      message === "Invalid tenant role"
+    ) {
       return jsonError("FORBIDDEN", message, 403);
     }
     return jsonError("AUTH_ERROR", message, 500);

@@ -27,32 +27,15 @@ export default function CasesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [membersData, casesRes] = await Promise.all([
+      const [membersData, casesData] = await Promise.all([
         apiClient.getUsers(tenantId),
-        fetch("/api/v1/cases", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-tenant-id": tenantId,
-          },
-          cache: "no-store",
-        }),
+        apiClient.getCasesWithSummary(tenantId),
       ]);
 
-      const casesJson = (await casesRes.json().catch(() => null)) as
-        | { success: true; data: { cases: CaseListItem[]; summary?: { statusBreakdown?: Record<string, number> } } }
-        | { success: false; error: { message: string } }
-        | null;
-
-      if (!casesRes.ok || !casesJson || !casesJson.success) {
-        const message = casesJson && "error" in casesJson ? casesJson.error.message : "Failed to load cases";
-        throw new ApiClientError(message, "REQUEST_FAILED", casesRes.status);
-      }
-
       setMembers(membersData.users);
-      setCases(casesJson.data.cases);
-      setSummary(casesJson.data.summary?.statusBreakdown ?? {});
-      setSelectedId(casesJson.data.cases[0]?.id ?? null);
+      setCases(casesData.cases);
+      setSummary(casesData.summary?.statusBreakdown ?? {});
+      setSelectedId(casesData.cases[0]?.id ?? null);
     } catch (err) {
       setCases([]);
       setMembers([]);

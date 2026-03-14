@@ -14,6 +14,8 @@
 - `POST /api/v1/cdrs/jobs/process`
   - Worker trigger to claim/process pending jobs.
   - Body: `{ maxJobs?: number, workerId?: string }`
+- `GET /api/v1/fraud-detection/model`
+  - Inspect model-enabled status and metadata.
 
 ### Job Lifecycle
 - `pending` -> `processing` -> `completed`
@@ -23,6 +25,7 @@
 ### Recommended production execution
 - Run `POST /api/v1/cdrs/jobs/process` from a scheduler every 5-15 seconds.
 - Use multiple worker IDs in parallel for throughput.
+- Track queue health using `GET /api/v1/cdrs/ingest-async?status=pending|processing|failed`.
 
 ## 2) Model-Assisted Fraud Scoring
 
@@ -37,11 +40,11 @@
 - `GET /api/v1/fraud-detection/model`
 
 ### Train a model from labeled data
-1. Prepare CSV using template: `docs/cdr_ml_dataset_template.csv`
+1. Prepare CSV using template: `docs/cdr_ml_dataset_template.csv` or realistic sample `docs/cdr_ml_dataset_realistic.csv`.
 2. Run:
 
 ```bash
-npm run ml:train -- docs/cdr_ml_dataset_template.csv models/fraud-model-trained.json
+npm run ml:train -- docs/cdr_ml_dataset_realistic.csv models/fraud-model-trained.json
 ```
 
 3. Set env to use trained model:
@@ -49,3 +52,11 @@ npm run ml:train -- docs/cdr_ml_dataset_template.csv models/fraud-model-trained.
 ```bash
 FRAUD_MODEL_PATH=models/fraud-model-trained.json
 ```
+
+## 3) Report Distribution Delivery Support
+
+Schema support exists via `report_distribution_jobs` table for `email` and `webhook` channels.
+
+- statuses: `queued`, `processing`, `delivered`, `failed`
+- scheduling fields: `scheduled_for`, `processed_at`
+- retry fields: `attempts`, `max_attempts`, `error_message`

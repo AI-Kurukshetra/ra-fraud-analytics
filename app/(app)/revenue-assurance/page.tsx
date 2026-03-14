@@ -14,32 +14,23 @@ import type {
 } from "@/lib/frontend/types";
 import type { ReconciliationItem } from "@/lib/backend/types";
 
-type ReconciliationTemplateItem = Omit<ReconciliationItem, "tenantId">;
-
-const SAMPLE_ITEMS: ReconciliationTemplateItem[] = [
-  {
-    recordKey: "cdr-2001",
-    billedAmount: 15,
-    mediatedAmount: 15,
-    collectedAmount: 14,
-  },
-  {
-    recordKey: "cdr-2002",
-    billedAmount: 21,
-    mediatedAmount: 19,
-    collectedAmount: 19,
-  },
-  {
-    recordKey: "cdr-2003",
-    billedAmount: 7,
-    mediatedAmount: 7,
-    collectedAmount: 7,
-  },
-];
-
 export default function RevenueAssurancePage() {
   const { tenantId } = useAuthContext();
   const [results, setResults] = useState<ReconciliationResult[]>([]);
+  const [reconciliationInput, setReconciliationInput] = useState(
+    JSON.stringify(
+      [
+        {
+          recordKey: "cdr-live-1",
+          billedAmount: 125.5,
+          mediatedAmount: 120.0,
+          collectedAmount: 98.0,
+        },
+      ],
+      null,
+      2,
+    ),
+  );
   const [history, setHistory] = useState<ReconciliationHistoryItem[]>([]);
   const [partners, setPartners] = useState<PartnerItem[]>([]);
   const [networkElements, setNetworkElements] = useState<NetworkElementItem[]>([]);
@@ -94,9 +85,13 @@ export default function RevenueAssurancePage() {
     setLoading(true);
     setError(null);
     try {
+      const parsed = JSON.parse(reconciliationInput) as Array<Omit<ReconciliationItem, "tenantId">>;
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        throw new Error("Reconciliation input must be a non-empty JSON array");
+      }
       const data = await apiClient.runReconciliation(
         tenantId,
-        SAMPLE_ITEMS.map((item) => ({ ...item, tenantId })),
+        parsed.map((item) => ({ ...item, tenantId })),
       );
       setResults(data.results);
       const historyData = await apiClient.getReconciliationHistory(tenantId);
@@ -179,7 +174,13 @@ export default function RevenueAssurancePage() {
       <section className="grid-two">
         <article className="panel">
           <h3>Reconciliation mismatch drilldown</h3>
-          <p className="muted">Use sample records to validate `/api/v1/revenue-assurance/reconcile`.</p>
+          <p className="muted">Submit reconciliation records and validate against `/api/v1/revenue-assurance/reconcile`.</p>
+          <textarea
+            className="input"
+            style={{ width: "100%", minHeight: 160 }}
+            value={reconciliationInput}
+            onChange={(event) => setReconciliationInput(event.target.value)}
+          />
           <button className="button" type="button" onClick={() => void runReconciliation()} disabled={loading}>
             {loading ? "Running..." : "Run reconciliation"}
           </button>

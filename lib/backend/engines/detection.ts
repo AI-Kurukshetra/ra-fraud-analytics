@@ -124,7 +124,15 @@ export function detectFraudBatch(cdrs: CdrRecord[]): FraudAlert[] {
 
   // Deduplicate in-memory by dedupe key for real-time suppression.
   const seen = new Set<string>();
+  const minConfidenceRaw = Number(process.env.ALERT_MIN_CONFIDENCE ?? "0");
+  const minConfidence = Number.isFinite(minConfidenceRaw)
+    ? Math.max(0, Math.min(1, minConfidenceRaw))
+    : 0;
+
   return alerts.filter((alert) => {
+    if (alert.confidence < minConfidence) {
+      return false;
+    }
     if (seen.has(alert.dedupeKey)) {
       return false;
     }

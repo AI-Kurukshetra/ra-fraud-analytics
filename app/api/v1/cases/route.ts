@@ -1,7 +1,7 @@
 import { withAuth } from "@/lib/backend/auth/handler";
 import { writeAuditLog } from "@/lib/backend/audit";
 import { createAdminClient } from "@/lib/backend/db";
-import { isCaseStatus } from "@/lib/backend/validation";
+import { isCaseStatus, parseListLimit, parseStringQuery } from "@/lib/backend/validation";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
 const CASE_TRANSITIONS: Record<string, string[]> = {
@@ -14,11 +14,10 @@ const CASE_TRANSITIONS: Record<string, string[]> = {
 export async function GET(request: Request) {
   return withAuth(async (auth) => {
     const url = new URL(request.url);
-    const status = url.searchParams.get("status");
-    const assigneeUserId = url.searchParams.get("assigneeUserId");
-    const alertId = url.searchParams.get("alertId");
-    const limitParam = Number(url.searchParams.get("limit") ?? "200");
-    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 500) : 200;
+    const status = parseStringQuery(url.searchParams.get("status"), 24);
+    const assigneeUserId = parseStringQuery(url.searchParams.get("assigneeUserId"), 64);
+    const alertId = parseStringQuery(url.searchParams.get("alertId"), 64);
+    const limit = parseListLimit(url.searchParams.get("limit"), { fallback: 200, min: 1, max: 500 });
 
     const admin = createAdminClient();
     let query = admin
@@ -52,6 +51,20 @@ export async function GET(request: Request) {
     const recoveryImpact = rows
       .filter((item) => item.status === "resolved" || item.status === "closed")
       .reduce((sum, item) => sum + Number(item.revenue_impact ?? 0), 0);
+
+    await writeAuditLog({
+      tenantId: auth.tenantId,
+      actorUserId: auth.user.id,
+      action: "cases_list",
+      resourceType: "case",
+      payload: {
+        status: status ?? "all",
+        assigneeUserId: assigneeUserId ?? "all",
+        alertId: alertId ?? "all",
+        limit,
+        count: rows.length,
+      },
+    });
 
     return jsonOk({
       cases: rows,

@@ -37,6 +37,9 @@ export async function processCdrIngest(params: {
   actorUserId?: string;
   sourceSystem?: string;
 }): Promise<CdrIngestResult> {
+  if (!Array.isArray(params.records) || params.records.length === 0) {
+    throw new Error("No CDR records supplied");
+  }
   const records = params.records.map((record) => ({ ...record, tenantId: params.tenantId }));
   const insertedCdrs: InsertedCdr[] = [];
 
@@ -89,24 +92,27 @@ export async function processCdrIngest(params: {
 
   const alerts = detectFraudBatch(normalized);
   if (alerts.length > 0) {
-    const { error: alertError } = await params.admin.from("alerts").upsert(
-      alerts.map((alert) => ({
-        id: alert.id,
-        tenant_id: alert.tenantId,
-        cdr_id: alert.cdrId ?? null,
-        title: alert.title,
-        description: alert.description,
-        fraud_type: alert.fraudType,
-        severity: alert.severity,
-        confidence: alert.confidence,
-        dedupe_key: alert.dedupeKey,
-        status: alert.status,
-      })),
-      { onConflict: "tenant_id,dedupe_key" },
-    );
+    for (let start = 0; start < alerts.length; start += INSERT_CHUNK_SIZE) {
+      const chunk = alerts.slice(start, start + INSERT_CHUNK_SIZE);
+      const { error: alertError } = await params.admin.from("alerts").upsert(
+        chunk.map((alert) => ({
+          id: alert.id,
+          tenant_id: alert.tenantId,
+          cdr_id: alert.cdrId ?? null,
+          title: alert.title,
+          description: alert.description,
+          fraud_type: alert.fraudType,
+          severity: alert.severity,
+          confidence: alert.confidence,
+          dedupe_key: alert.dedupeKey,
+          status: alert.status,
+        })),
+        { onConflict: "tenant_id,dedupe_key" },
+      );
 
-    if (alertError) {
-      throw new Error(alertError.message);
+      if (alertError) {
+        throw new Error(alertError.message);
+      }
     }
   }
 

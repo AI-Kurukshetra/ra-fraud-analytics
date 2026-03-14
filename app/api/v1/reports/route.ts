@@ -1,15 +1,15 @@
 import { withAuth } from "@/lib/backend/auth/handler";
 import { writeAuditLog } from "@/lib/backend/audit";
 import { createAdminClient } from "@/lib/backend/db";
+import { parseListLimit, parseStringQuery } from "@/lib/backend/validation";
 import { jsonError, jsonOk } from "@/lib/backend/utils/json";
 
 export async function GET(request: Request) {
   return withAuth(async (auth) => {
     const url = new URL(request.url);
-    const reportType = url.searchParams.get("reportType");
-    const status = url.searchParams.get("status");
-    const limitParam = Number(url.searchParams.get("limit") ?? "100");
-    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 500) : 100;
+    const reportType = parseStringQuery(url.searchParams.get("reportType"), 40);
+    const status = parseStringQuery(url.searchParams.get("status"), 24);
+    const limit = parseListLimit(url.searchParams.get("limit"), { fallback: 100, min: 1, max: 500 });
 
     const admin = createAdminClient();
     let query = admin
@@ -38,13 +38,23 @@ export async function GET(request: Request) {
       return acc;
     }, {});
 
-    return jsonOk({
+    const response = {
       reports,
       summary: {
         total: reports.length,
         byType,
       },
+    };
+
+    await writeAuditLog({
+      tenantId: auth.tenantId,
+      actorUserId: auth.user.id,
+      action: "reports_list",
+      resourceType: "report",
+      payload: { reportType: reportType ?? "all", status: status ?? "all", limit, count: reports.length },
     });
+
+    return jsonOk(response);
   }, { allowedRoles: ["owner", "admin", "analyst", "viewer"] });
 }
 

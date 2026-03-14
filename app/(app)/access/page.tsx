@@ -6,13 +6,6 @@ import { DataState } from "@/components/ui-state";
 import { apiClient, ApiClientError } from "@/lib/frontend/api-client";
 import type { MembershipUser, RuleItem, WorkflowItem } from "@/lib/frontend/types";
 
-const PERMISSION_MATRIX = [
-  { role: "owner", permissions: ["manage_users", "manage_rules", "view_audit", "resolve_cases"] },
-  { role: "admin", permissions: ["manage_users", "manage_rules", "resolve_cases", "configure_integrations"] },
-  { role: "analyst", permissions: ["view_alerts", "investigate_cases", "run_reconciliation"] },
-  { role: "viewer", permissions: ["view_dashboards", "view_reports"] },
-];
-
 export default function AccessPage() {
   const { tenantId } = useAuthContext();
   const [users, setUsers] = useState<MembershipUser[]>([]);
@@ -92,16 +85,18 @@ export default function AccessPage() {
           <article className="panel">
             <h3>Role permissions</h3>
             <ul className="list">
-              {PERMISSION_MATRIX.map((item) => (
-                <li key={item.role} className="list-item">
+              {Object.keys(roleCounts)
+                .sort()
+                .map((role) => (
+                <li key={role} className="list-item">
                   <div>
                     <p className="list-title">
-                      {item.role} ({roleCounts[item.role] ?? 0})
+                      {role} ({roleCounts[role] ?? 0})
                     </p>
-                    <p className="muted">{item.permissions.join(", ")}</p>
+                    <p className="muted">Role assignments loaded from live tenant membership data.</p>
                   </div>
                 </li>
-              ))}
+                ))}
             </ul>
             <h3>Rule governance</h3>
             <ul className="list compact">

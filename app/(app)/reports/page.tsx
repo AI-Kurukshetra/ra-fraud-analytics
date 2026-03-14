@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { DataState } from "@/components/ui-state";
 import { useAuthContext } from "@/components/auth-context";
 import { apiClient, ApiClientError } from "@/lib/frontend/api-client";
-import type { AuditEvent, LineageEvent, QualityEvent, ReportRecord } from "@/lib/frontend/types";
+import type {
+  AnalyticsTimelineItem,
+  AuditEvent,
+  LineageEvent,
+  QualityEvent,
+  ReportRecord,
+} from "@/lib/frontend/types";
 
 export default function ReportsPage() {
   const { tenantId } = useAuthContext();
@@ -12,9 +18,7 @@ export default function ReportsPage() {
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [qualityEvents, setQualityEvents] = useState<QualityEvent[]>([]);
   const [lineageEvents, setLineageEvents] = useState<LineageEvent[]>([]);
-  const [analyticsTimeline, setAnalyticsTimeline] = useState<
-    Array<{ date: string; alerts: number; cases: number; reconciliations: number; leakage: number }>
-  >([]);
+  const [analyticsTimeline, setAnalyticsTimeline] = useState<AnalyticsTimelineItem[]>([]);
   const [reconciliationSummary, setReconciliationSummary] = useState<{
     totalLeakageAmount: number;
     totalMismatchAmount: number;
@@ -29,55 +33,21 @@ export default function ReportsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [reportData, complianceData] = await Promise.all([
+      const [reportData, complianceData, analyticsData, reconciliationData] = await Promise.all([
         apiClient.getReports(tenantId),
         apiClient.getCompliance(tenantId),
+        apiClient.getAnalyticsWindow(tenantId, Number(days)),
+        apiClient.getReconciliationSummary(tenantId, 500),
       ]);
-      const [analyticsRes, reconciliationRes] = await Promise.all([
-        fetch(`/api/v1/analytics?windowDays=${days}`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-tenant-id": tenantId,
-          },
-          cache: "no-store",
-        }),
-        fetch(`/api/v1/reconciliation?limit=500`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-tenant-id": tenantId,
-          },
-          cache: "no-store",
-        }),
-      ]);
-
-      const analyticsJson = (await analyticsRes.json().catch(() => null)) as
-        | { success: true; data: { timeline?: Array<{ date: string; alerts: number; cases: number; reconciliations: number; leakage: number }> } }
-        | { success: false; error: { message: string } }
-        | null;
-      const reconciliationJson = (await reconciliationRes.json().catch(() => null)) as
-        | { success: true; data: { summary?: { totalLeakageAmount?: number; totalMismatchAmount?: number } } }
-        | { success: false; error: { message: string } }
-        | null;
-
-      if (!analyticsRes.ok || !analyticsJson || !analyticsJson.success) {
-        const message = analyticsJson && "error" in analyticsJson ? analyticsJson.error.message : "Failed analytics";
-        throw new ApiClientError(message, "REQUEST_FAILED", analyticsRes.status);
-      }
-      if (!reconciliationRes.ok || !reconciliationJson || !reconciliationJson.success) {
-        const message = reconciliationJson && "error" in reconciliationJson ? reconciliationJson.error.message : "Failed reconciliation summary";
-        throw new ApiClientError(message, "REQUEST_FAILED", reconciliationRes.status);
-      }
 
       setReports(reportData.reports);
       setAuditEvents(complianceData.auditEvents);
       setQualityEvents(complianceData.qualityEvents);
       setLineageEvents(complianceData.lineageEvents);
-      setAnalyticsTimeline(analyticsJson.data.timeline ?? []);
+      setAnalyticsTimeline(analyticsData.timeline ?? []);
       setReconciliationSummary({
-        totalLeakageAmount: reconciliationJson.data.summary?.totalLeakageAmount ?? 0,
-        totalMismatchAmount: reconciliationJson.data.summary?.totalMismatchAmount ?? 0,
+        totalLeakageAmount: reconciliationData.summary?.totalLeakageAmount ?? 0,
+        totalMismatchAmount: reconciliationData.summary?.totalMismatchAmount ?? 0,
       });
     } catch (err) {
       setReports([]);
